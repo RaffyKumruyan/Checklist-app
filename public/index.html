@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Checklist App</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="icon" href="/favicon.ico" type="image/x-icon"> <!-- Add this line -->
+</head>
+
+<body>
+  <div class="decorative-elements">
+    <div class="circle1"></div>
+    <div class="circle2"></div>
+    <div class="circle3"></div>
+    <div class="circle4"></div>
+    <div class="circle5"></div>
+    <div class="circle6"></div>
+    <div class="circle7"></div>
+    <div class="circle8"></div>
+  </div>
+  <div class="container">
+    <header>
+      <h1><i class="fas fa-check-circle"></i> Checklist</h1>
+      <div class="input-group">
+        <input type="text" id="nameInput" placeholder="Enter name">
+        <button onclick="addName()"><i class="fas fa-plus"></i> Add</button>
+      </div>
+    </header>
+    <div id="counter">
+      <div class="count">0/0</div>
+      <div class="progress-bar">
+        <div class="fill"></div>
+      </div>
+    </div>
+    <main>
+      <ul id="checklist"></ul>
+    </main>
+  </div>
+  <div class="modal" id="confirmModal">
+    <div class="modal-content">
+      <h2>Are you sure you want to uncheck this item?</h2>
+      <button class="confirm" onclick="confirmUncheck()">Yes</button>
+      <button class="cancel" onclick="cancelUncheck()">No</button>
+    </div>
+  </div>
+  <div class="modal" id="deleteConfirmModal">
+    <div class="modal-content">
+      <h2>Are you sure you want to delete this item?</h2>
+      <button class="confirm" onclick="confirmDelete()">Yes</button>
+      <button class="cancel" onclick="cancelDelete()">No</button>
+    </div>
+  </div>
+  <script>
+    document.addEventListener('DOMContentLoaded', (event) => {
+      fetchChecklist();
+    });
+
+    function fetchChecklist() {
+      fetch('/api/checklist')
+        .then(response => response.json())
+        .then(data => {
+          console.log('Fetched checklist:', data); // Logging fetched data
+          const checklist = document.getElementById('checklist');
+          checklist.innerHTML = '';
+          data.forEach(item => {
+            addListItem(item.name, item.done);
+          });
+          updateCounter();
+        });
+    }
+
+    function addName() {
+      const nameInput = document.getElementById('nameInput');
+      const name = nameInput.value.trim();
+      if (name) {
+        fetch('/api/checklist', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ name })
+        }).then(response => {
+          if (response.ok) {
+            addListItem(name, false);
+            nameInput.value = '';
+            updateCounter();
+            console.log('Added item:', name); // Logging added item
+          }
+        });
+      }
+    }
+
+    function addListItem(name, done) {
+      const checklist = document.getElementById('checklist');
+      const li = document.createElement('li');
+      li.className = `list-item ${done ? 'done' : ''}`;
+      li.innerHTML = `
+                <div class="custom-checkbox ${done ? 'checked' : 'unchecked'}" onclick="toggleDone(this)"></div>
+                <span onclick="toggleDone(this.previousElementSibling)">${name}</span>
+                <button onclick="confirmDeleteName(this)"><i class="fas fa-trash-alt"></i></button>
+            `;
+      checklist.appendChild(li);
+      document.querySelector('.container').scrollTop = document.querySelector('.container').scrollHeight;
+    }
+
+    let currentCheckbox = null;
+    let currentDeleteButton = null;
+
+    function toggleDone(element) {
+      const checkbox = element.classList.contains('custom-checkbox') ? element : element.previousElementSibling;
+      const name = checkbox.nextElementSibling.textContent;
+      const done = !checkbox.classList.contains('checked');
+
+      if (!done) {
+        currentCheckbox = checkbox;
+        document.getElementById('confirmModal').style.display = 'flex';
+      } else {
+        fetch('/api/checklist', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ name, done })
+        }).then(response => {
+          if (response.ok) {
+            checkbox.classList.toggle('checked');
+            checkbox.classList.toggle('unchecked');
+            checkbox.parentElement.classList.toggle('done');
+            updateCounter();
+            console.log('Updated item:', name, done); // Logging updated item
+          }
+        });
+      }
+    }
+
+    function confirmUncheck() {
+      const checkbox = currentCheckbox;
+      const name = checkbox.nextElementSibling.textContent;
+      fetch('/api/checklist', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name, done: false })
+      }).then(response => {
+        if (response.ok) {
+          checkbox.classList.remove('checked');
+          checkbox.classList.add('unchecked');
+          checkbox.parentElement.classList.remove('done');
+          currentCheckbox = null;
+          document.getElementById('confirmModal').style.display = 'none';
+          updateCounter();
+          console.log('Unchecked item:', name); // Logging unchecked item
+        }
+      });
+    }
+
+    function cancelUncheck() {
+      currentCheckbox = null;
+      document.getElementById('confirmModal').style.display = 'none';
+    }
+
+    function confirmDeleteName(button) {
+      currentDeleteButton = button;
+      document.getElementById('deleteConfirmModal').style.display = 'flex';
+    }
+
+    function confirmDelete() {
+      const button = currentDeleteButton;
+      const li = button.parentElement;
+      const name = li.querySelector('span').textContent;
+      fetch('/api/checklist', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name })
+      }).then(response => {
+        if (response.ok) {
+          li.classList.add('fade-out');
+          setTimeout(() => {
+            li.remove();
+            updateCounter();
+            console.log('Deleted item:', name); // Logging deleted item
+          }, 500);
+          document.getElementById('deleteConfirmModal').style.display = 'none';
+        }
+      });
+    }
+
+    function cancelDelete() {
+      currentDeleteButton = null;
+      document.getElementById('deleteConfirmModal').style.display = 'none';
+    }
+
+    function updateCounter() {
+      const checklist = document.getElementById('checklist');
+      const items = checklist.querySelectorAll('li');
+      const doneItems = checklist.querySelectorAll('li.done');
+      const count = document.querySelector('#counter .count');
+      const progressBar = document.querySelector('#counter .progress-bar .fill');
+
+      count.textContent = `${doneItems.length}/${items.length}`;
+      const percentage = (doneItems.length / items.length) * 100;
+      progressBar.style.width = `${percentage}%`;
+
+      if (percentage <= 30) {
+        progressBar.style.backgroundColor = '#ff0000'; // Red
+      } else if (percentage <= 70) {
+        progressBar.style.backgroundColor = '#ffcc00'; // Yellow
+      } else if (percentage < 100) {
+        progressBar.style.backgroundColor = '#90ee90'; // Yellow-Green
+      } else {
+        progressBar.style.backgroundColor = '#28a745'; // Mega cool green
+      }
+    }
+  </script>
+</body>
+
+</html>
