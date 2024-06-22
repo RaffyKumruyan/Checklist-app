@@ -207,7 +207,7 @@
       const percentage = (doneItems.length / items.length) * 100;
       progressBar.style.width = `${percentage}%`;
 
-      if (percentage <= 30) {
+      if (percentage <= 10) {
         progressBar.style.backgroundColor = '#ff0000'; // Red
       } else if (percentage <= 70) {
         progressBar.style.backgroundColor = '#ffcc00'; // Yellow
